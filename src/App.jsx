@@ -23,8 +23,8 @@ import {
 } from 'lucide-react';
 import './App.css';
 
-// Set Rails backend API base URL from environment variable
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// API base URL — set VITE_API_URL for local dev, empty for production (nginx proxy)
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
 
 // Inject authorization token on every request
 axios.interceptors.request.use(
