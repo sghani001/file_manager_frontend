@@ -13,21 +13,18 @@ import {
   Loader2,
   RefreshCw,
   FolderOpen,
-  MessageSquare,
   X,
   Share2,
-  Send,
   Key,
   Calendar,
   Download,
   Copy,
-  Plus,
-  ArrowRight
+  Plus
 } from 'lucide-react';
 import './App.css';
 
-// Set Rails backend API base URL
-axios.defaults.baseURL = 'http://localhost:3000';
+// Set Rails backend API base URL from environment variable
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Inject authorization token on every request
 axios.interceptors.request.use(
@@ -63,27 +60,8 @@ function App() {
 
   // Slide-out Drawer Panel States
   const [selectedFile, setSelectedFile] = useState(null);
-  const [drawerTab, setDrawerTab] = useState('details'); // 'details', 'share', 'chat'
-  
-  // Drawer - Sharing Link Form States
-  const [expiresIn, setExpiresIn] = useState('60'); // minutes
-  const [maxAccesses, setMaxAccesses] = useState('1'); // accesses
-  const [sharePasscode, setSharePasscode] = useState('');
-  const [generatedLink, setGeneratedLink] = useState('');
-  const [generatingLink, setGeneratingLink] = useState(false);
-
-  // Drawer - Single File Chat States
-  const [fileMessages, setFileMessages] = useState([]);
-  const [fileInput, setFileInput] = useState('');
-  const [sendingFileChat, setSendingFileChat] = useState(false);
-
-  // Floating Global Chat Assistant States
-  const [globalChatOpen, setGlobalChatOpen] = useState(false);
-  const [globalMessages, setGlobalMessages] = useState([
-    { sender: 'bot', text: "Hi! I am your **CloudVault AI Assistant**. 🧠 Ask me anything about your files, like *\"Summarize my files\"* or *\"Which files failed?\"*." }
-  ]);
-  const [globalInput, setGlobalInput] = useState('');
-  const [sendingGlobalChat, setSendingGlobalChat] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewText, setPreviewText] = useState('');
 
   // Expiring Public Share Route (Dynamic routing parser)
   const [shareToken, setShareToken] = useState(null);
@@ -93,8 +71,6 @@ function App() {
   const [shareLoading, setShareLoading] = useState(false);
 
   const fileInputRef = useRef(null);
-  const fileChatEndRef = useRef(null);
-  const globalChatEndRef = useRef(null);
 
   // Parse share URLs on load (e.g. /share/abcxyz)
   useEffect(() => {
@@ -107,15 +83,6 @@ function App() {
       }
     }
   }, []);
-
-  // Scroll chats to bottom when new messages arrive
-  useEffect(() => {
-    fileChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [fileMessages]);
-
-  useEffect(() => {
-    globalChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [globalMessages, globalChatOpen]);
 
   // Toast Helper
   const triggerToast = (title, message, type = 'info') => {
@@ -159,6 +126,30 @@ function App() {
       if (updated) setSelectedFile(updated);
     }
   }, [files]);
+
+  // Fetch file preview when a file is selected
+  useEffect(() => {
+    if (!selectedFile) { setPreviewUrl(''); setPreviewText(''); return; }
+    const ft = selectedFile.file_type;
+    if (ft?.startsWith('image/') || ft === 'application/pdf') {
+      axios.get(`/api/v1/files/${selectedFile.id}/download`, { responseType: 'blob' })
+        .then((res) => {
+          setPreviewUrl(window.URL.createObjectURL(res.data));
+          setPreviewText('');
+        })
+        .catch(() => { setPreviewUrl(''); setPreviewText(''); });
+    } else if (ft?.startsWith('text/')) {
+      axios.get(`/api/v1/files/${selectedFile.id}/download`, { responseType: 'text' })
+        .then((res) => {
+          setPreviewText(res.data);
+          setPreviewUrl('');
+        })
+        .catch(() => { setPreviewUrl(''); setPreviewText(''); });
+    } else {
+      setPreviewUrl('');
+      setPreviewText('');
+    }
+  }, [selectedFile?.id]);
 
   const loadPublicShareInfo = async (tokenStr) => {
     setShareLoading(true);
@@ -234,7 +225,6 @@ function App() {
     setUser(null);
     setFiles([]);
     setSelectedFile(null);
-    setGlobalChatOpen(false);
     triggerToast('Logged Out', 'Your session has been securely closed.', 'info');
   };
 
@@ -299,74 +289,17 @@ function App() {
   };
 
   // Generate Temporary sharing link
-  const handleGenerateShareLink = async (e) => {
-    e.preventDefault();
-    if (!selectedFile) return;
-    setGeneratingLink(true);
-    setGeneratedLink('');
-
+  const handleDownloadFile = async (fileId, fileName) => {
     try {
-      const { data } = await axios.post('/api/v1/share_links', {
-        user_file_id: selectedFile.id,
-        expires_in_minutes: expiresIn,
-        max_accesses: maxAccesses,
-        passcode: sharePasscode
-      });
-
-      setGeneratedLink(data.share_url);
-      triggerToast('Share Link Created', 'Public temporary link compiled successfully.', 'success');
+      const { data } = await axios.get(`/api/v1/files/${fileId}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("Share error:", err);
-      triggerToast('Link Creation Failed', err.response?.data?.error || 'Failed to create share link', 'error');
-    } finally {
-      setGeneratingLink(false);
-    }
-  };
-
-  // Single file AI chat
-  const handleFileChatSend = async (e) => {
-    e.preventDefault();
-    if (!fileInput.trim() || !selectedFile) return;
-    
-    const userMsg = fileInput;
-    setFileMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setFileInput('');
-    setSendingFileChat(true);
-
-    try {
-      const { data } = await axios.post('/api/v1/chat', {
-        prompt: userMsg,
-        user_file_id: selectedFile.id
-      });
-      setFileMessages(prev => [...prev, { sender: 'bot', text: data.response }]);
-    } catch (err) {
-      console.error(err);
-      setFileMessages(prev => [...prev, { sender: 'bot', text: 'Error communicating with AI assistant.' }]);
-    } finally {
-      setSendingFileChat(false);
-    }
-  };
-
-  // Global vault AI chat
-  const handleGlobalChatSend = async (e) => {
-    e.preventDefault();
-    if (!globalInput.trim()) return;
-
-    const userMsg = globalInput;
-    setGlobalMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setGlobalInput('');
-    setSendingGlobalChat(true);
-
-    try {
-      const { data } = await axios.post('/api/v1/chat', {
-        prompt: userMsg
-      });
-      setGlobalMessages(prev => [...prev, { sender: 'bot', text: data.response }]);
-    } catch (err) {
-      console.error(err);
-      setGlobalMessages(prev => [...prev, { sender: 'bot', text: 'Error communicating with AI assistant.' }]);
-    } finally {
-      setSendingGlobalChat(false);
+      triggerToast('Download Failed', err.response?.data?.error || err.message, 'error');
     }
   };
 
@@ -604,7 +537,92 @@ function App() {
     );
   };
 
+  const renderFilePreview = () => {
+    if (!selectedFile) return null;
+    return (
+      <div className="app-container">
+        <header className="header">
+          <div className="logo-section">
+            <div className="logo-icon">
+              <UploadCloud size={20} />
+            </div>
+            <span className="logo-title">CloudVault</span>
+          </div>
+          <div className="user-nav">
+            <button className="btn btn-secondary" onClick={() => setSelectedFile(null)} style={{ width: 'auto', padding: '0.5rem 1rem' }}>
+              &larr; Back to Vault
+            </button>
+          </div>
+        </header>
+
+        <div className="preview-container">
+          <div className="glass-card" style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h2 style={{ fontWeight: '700', marginBottom: '0.25rem' }}>{selectedFile.name}</h2>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{selectedFile.file_type}</span>
+            </div>
+
+            {previewUrl ? (
+              <div style={{ marginBottom: '1.5rem', borderRadius: '8px', overflow: 'hidden', background: 'rgba(0,0,0,0.2)' }}>
+                {selectedFile.file_type?.startsWith('image/') ? (
+                  <img
+                    src={previewUrl}
+                    alt={selectedFile.name}
+                    style={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', display: 'block' }}
+                  />
+                ) : selectedFile.file_type === 'application/pdf' ? (
+                  <iframe
+                    src={previewUrl}
+                    title={selectedFile.name}
+                    style={{ width: '100%', height: '70vh', border: 'none' }}
+                  />
+                ) : null}
+              </div>
+            ) : previewText ? (
+              <div style={{ marginBottom: '1.5rem', borderRadius: '8px', overflow: 'auto', maxHeight: '70vh', background: 'rgba(0,0,0,0.2)', padding: '1.5rem' }}>
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{previewText}</pre>
+              </div>
+            ) : null}
+
+            <button
+              className="btn btn-primary"
+              onClick={() => handleDownloadFile(selectedFile.id, selectedFile.name)}
+              style={{ width: '100%', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            >
+              <Download size={16} /> Download Original
+            </button>
+
+            <div>
+              <div className="drawer-section-title">File Details</div>
+              <div className="meta-grid">
+                <div className="meta-item">
+                  <div className="meta-label">File Size</div>
+                  <div className="meta-value">{formatBytes(selectedFile.file_size)}</div>
+                </div>
+                <div className="meta-item">
+                  <div className="meta-label">Status</div>
+                  <div className="meta-value" style={{ textTransform: 'capitalize' }}>{selectedFile.status}</div>
+                </div>
+                <div className="meta-item">
+                  <div className="meta-label">Processed At</div>
+                  <div className="meta-value">
+                    {selectedFile.processed_at ? new Date(selectedFile.processed_at).toLocaleString() : '-'}
+                  </div>
+                </div>
+                <div className="meta-item">
+                  <div className="meta-label">Storage Key</div>
+                  <div className="meta-value" style={{ wordBreak: 'break-all', fontSize: '0.8rem' }}>{selectedFile.s3_key}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboard = () => {
+    if (selectedFile) return renderFilePreview();
     return (
       <div className="app-container">
         {/* Header */}
@@ -746,13 +764,7 @@ function App() {
                       return (
                         <tr 
                           key={file.id} 
-                          onClick={() => {
-                            setSelectedFile(file);
-                            setDrawerTab('details');
-                            // Clear single chat thread
-                            setFileMessages([]);
-                            setGeneratedLink('');
-                          }}
+                          onClick={() => setSelectedFile(file)}
                           style={{ cursor: 'pointer' }}
                         >
                           <td>
@@ -803,16 +815,12 @@ function App() {
                                   <RefreshCw size={12} /> {file.status === 'failed' ? 'Retry' : 'Process'}
                                 </button>
                               )}
-                              <button 
+                              <button
                                 className="btn btn-secondary"
-                                onClick={() => {
-                                  setSelectedFile(file);
-                                  setDrawerTab('share');
-                                  setGeneratedLink('');
-                                }}
+                                onClick={() => setSelectedFile(file)}
                                 style={{ width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                               >
-                                <Share2 size={12} /> Share
+                                <Share2 size={12} /> View
                               </button>
                             </div>
                           </td>
@@ -826,284 +834,7 @@ function App() {
           </div>
         </div>
 
-        {/* Global Chat Floating Assistant */}
-        <div className="chat-widget">
-          <button className="chat-fab" onClick={() => setGlobalChatOpen(!globalChatOpen)}>
-            {globalChatOpen ? <X size={24} /> : <MessageSquare size={24} />}
-          </button>
 
-          {globalChatOpen && (
-            <div className="chat-window">
-              <div className="chat-header">
-                <span className="chat-title">
-                  <MessageSquare size={16} style={{ color: 'var(--accent-primary)' }} /> CloudVault AI Agent
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Bedrock RAG Simulator</span>
-              </div>
-
-              <div className="chat-history">
-                {globalMessages.map((msg, idx) => (
-                  <div key={idx} className={`chat-bubble chat-bubble-${msg.sender}`}>
-                    {msg.text.includes('**') || msg.text.includes('*') ? (
-                      // Parse basic markdown bullet points for chatbot formatting
-                      <div dangerouslySetInnerHTML={{ 
-                        __html: msg.text
-                          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                          .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                          .replace(/\n/g, '<br />')
-                      }} />
-                    ) : (
-                      msg.text
-                    )}
-                  </div>
-                ))}
-                {sendingGlobalChat && (
-                  <div className="chat-bubble chat-bubble-bot" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <Loader2 className="animate-spin" size={14} /> AI is thinking...
-                  </div>
-                )}
-                <div ref={globalChatEndRef} />
-              </div>
-
-              <form className="chat-input-area" onSubmit={handleGlobalChatSend}>
-                <input 
-                  type="text" 
-                  className="chat-input" 
-                  placeholder="Ask a question about your files..."
-                  value={globalInput}
-                  onChange={(e) => setGlobalInput(e.target.value)}
-                  disabled={sendingGlobalChat}
-                />
-                <button type="submit" className="chat-send-btn" disabled={sendingGlobalChat}>
-                  <Send size={14} />
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
-
-        {/* Slide-out Drawer Panel */}
-        {selectedFile && (
-          <>
-            <div className="drawer-overlay" onClick={() => setSelectedFile(null)}></div>
-            <div className={`drawer ${selectedFile ? 'drawer-open' : ''}`}>
-              <div className="drawer-header">
-                <div className="drawer-title-area">
-                  <div className="drawer-filename">{selectedFile.name}</div>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{selectedFile.file_type}</span>
-                </div>
-                <button className="toast-close" onClick={() => setSelectedFile(null)} style={{ padding: '0.5rem' }}>
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Tabs */}
-              <div className="drawer-tabs">
-                <button className={`drawer-tab ${drawerTab === 'details' ? 'active' : ''}`} onClick={() => setDrawerTab('details')}>
-                  File Info
-                </button>
-                <button className={`drawer-tab ${drawerTab === 'share' ? 'active' : ''}`} onClick={() => setDrawerTab('share')}>
-                  Sharing Links
-                </button>
-                <button className={`drawer-tab ${drawerTab === 'chat' ? 'active' : ''}`} onClick={() => setDrawerTab('chat')}>
-                  File AI Chat
-                </button>
-              </div>
-
-              <div className="drawer-body">
-                {/* Details Tab */}
-                {drawerTab === 'details' && (
-                  <>
-                    <div>
-                      <div className="drawer-section-title">Analysis Summary</div>
-                      <div className="glass-card" style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.01)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                        {selectedFile.processing_job?.status === 'completed' ? (
-                          selectedFile.processing_job?.result?.summary || 'No summary available.'
-                        ) : selectedFile.processing_job?.status === 'failed' ? (
-                          <span style={{ color: 'var(--color-error)' }}>
-                            Processing failed: {selectedFile.processing_job?.error_message}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>Analysis queued. Processing in background...</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="drawer-section-title">AI Content Tags</div>
-                      <div className="tag-container">
-                        {selectedFile.processing_job?.result?.tags?.map((tag, idx) => (
-                          <span key={idx} className="tag-pill" style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}>#{tag}</span>
-                        )) || <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No tags generated yet.</span>}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="drawer-section-title">File Details</div>
-                      <div className="meta-grid">
-                        <div className="meta-item">
-                          <div className="meta-label">Storage Key</div>
-                          <div className="meta-value" style={{ wordBreak: 'break-all', fontSize: '0.8rem' }}>{selectedFile.s3_key}</div>
-                        </div>
-                        <div className="meta-item">
-                          <div className="meta-label">File Size</div>
-                          <div className="meta-value">{formatBytes(selectedFile.file_size)}</div>
-                        </div>
-                        <div className="meta-item">
-                          <div className="meta-label">Status</div>
-                          <div className="meta-value" style={{ textTransform: 'capitalize' }}>{selectedFile.status}</div>
-                        </div>
-                        <div className="meta-item">
-                          <div className="meta-label">Processed At</div>
-                          <div className="meta-value">
-                            {selectedFile.processed_at ? new Date(selectedFile.processed_at).toLocaleString() : '-'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedFile.processing_job?.result && (
-                      <div>
-                        <div className="drawer-section-title">RAW Engine Results</div>
-                        <pre className="results-preview" style={{ maxWidth: '100%' }}>
-                          {JSON.stringify(selectedFile.processing_job.result, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Share Tab */}
-                {drawerTab === 'share' && (
-                  <>
-                    <h4 style={{ fontWeight: '600' }}>Create Expiring Share Link</h4>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                      Generate a secure random link for external sharing. The link will self-destruct once it reaches the download limits.
-                    </p>
-
-                    <form onSubmit={handleGenerateShareLink} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                      <div className="form-group">
-                        <label className="form-label">Expiry duration</label>
-                        <select className="form-input" value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)}>
-                          <option value="5">5 Minutes (Instant Expiry)</option>
-                          <option value="60">1 Hour</option>
-                          <option value="1440">24 Hours</option>
-                          <option value="0">Never Expire</option>
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Download access limit</label>
-                        <select className="form-input" value={maxAccesses} onChange={(e) => setMaxAccesses(e.target.value)}>
-                          <option value="1">1 Download Only (Self-Destructs)</option>
-                          <option value="5">5 Downloads</option>
-                          <option value="10">10 Downloads</option>
-                          <option value="">Unlimited Downloads</option>
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Optional Passcode protection</label>
-                        <input 
-                          type="text" 
-                          className="form-input" 
-                          placeholder="e.g. 1234 (Leave blank for public access)"
-                          value={sharePasscode}
-                          onChange={(e) => setSharePasscode(e.target.value)}
-                        />
-                      </div>
-
-                      <button type="submit" className="btn btn-primary" disabled={generatingLink}>
-                        {generatingLink ? <Loader2 className="animate-spin" size={18} /> : 'Generate Secure Link'}
-                      </button>
-                    </form>
-
-                    {generatedLink && (
-                      <div className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--accent-border)' }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '700' }}>
-                          Copy Shareable Link
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            value={generatedLink} 
-                            readOnly 
-                            style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }} 
-                          />
-                          <button 
-                            className="btn btn-secondary" 
-                            style={{ width: 'auto', padding: '0.4rem 0.8rem' }}
-                            onClick={() => {
-                              navigator.clipboard.writeText(generatedLink);
-                              triggerToast('Copied to Clipboard', 'Link copied to copy buffer.', 'success');
-                            }}
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* File Chat Tab */}
-                {drawerTab === 'chat' && (
-                  <>
-                    <h4 style={{ fontWeight: '600' }}>AI Assistant chat: {selectedFile.name}</h4>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                      Ask questions directly about this document's properties, size, or processed labels.
-                    </p>
-
-                    <div className="drawer-chat-container">
-                      <div className="chat-history" style={{ padding: '0.75rem' }}>
-                        {fileMessages.length === 0 && (
-                          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', marginTop: '2rem' }}>
-                            Ask a question to start chatting about this file. E.g. *"Summarize this file"*
-                          </div>
-                        )}
-                        {fileMessages.map((msg, idx) => (
-                          <div key={idx} className={`chat-bubble chat-bubble-${msg.sender}`} style={{ fontSize: '0.8rem' }}>
-                            {msg.text.includes('**') ? (
-                              <div dangerouslySetInnerHTML={{ 
-                                __html: msg.text
-                                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                  .replace(/\n/g, '<br />')
-                              }} />
-                            ) : (
-                              msg.text
-                            )}
-                          </div>
-                        ))}
-                        {sendingFileChat && (
-                          <div className="chat-bubble chat-bubble-bot" style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.8rem' }}>
-                            <Loader2 className="animate-spin" size={12} /> AI analyzing...
-                          </div>
-                        )}
-                        <div ref={fileChatEndRef} />
-                      </div>
-
-                      <form className="chat-input-area" onSubmit={handleFileChatSend} style={{ padding: '0.5rem' }}>
-                        <input 
-                          type="text" 
-                          className="chat-input" 
-                          placeholder="Ask about this file..."
-                          value={fileInput}
-                          onChange={(e) => setFileInput(e.target.value)}
-                          disabled={sendingFileChat}
-                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
-                        />
-                        <button type="submit" className="chat-send-btn" disabled={sendingFileChat} style={{ width: '2rem', height: '2rem' }}>
-                          <ArrowRight size={14} />
-                        </button>
-                      </form>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </>
-        )}
       </div>
     );
   };
