@@ -1,16 +1,57 @@
-# React + Vite
+# CloudVault Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 single-page application for the CloudVault file management platform. Features drag-and-drop uploads, real-time processing status, AI-powered chat assistant, and secure shareable links.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** + **Vite 8**
+- **Axios** — API client
+- **Lucide React** — icons
+- **Oxlint** — linting
 
-## React Compiler
+## Quick Start
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+Dev server runs on `http://localhost:5173`. Ensure the backend is running on `http://localhost:3000`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Available Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run Oxlint |
+
+## Project Structure
+
+```
+src/
+├── App.jsx       — Main application (auth, dashboard, chat, share views)
+├── App.css       — Application styles
+├── main.jsx      — Entry point
+└── index.css     — Global styles
+```
+
+## Features
+
+- **Drag-and-drop file uploads** with real-time progress bars
+- **File listing** with search by name, type, AI tags, and summaries
+- **AI chat assistant** — global vault chat and per-file context chat
+- **Secure share links** — password-protected, expiring, self-destructing download links
+- **Auto-refresh** — file list polls every 3 seconds for status updates
+
+## API Configuration
+
+The backend URL defaults to `http://localhost:3000` and is configured in `src/App.jsx:30`. The auth token is automatically injected via Axios interceptor.
+
+## Production Build
+
+```bash
+npm run build
+# Serve dist/ via Nginx or copy to Rails public/
+```
