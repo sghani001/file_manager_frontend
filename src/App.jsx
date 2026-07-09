@@ -26,11 +26,11 @@ import './App.css';
 // API base URL — set VITE_API_URL for local dev, empty for production (nginx proxy)
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
 
-// Inject authorization token on every request
+// Inject authorization token on every request (except S3 presigned URL uploads)
 axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && !config.url.includes('amazonaws.com')) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
