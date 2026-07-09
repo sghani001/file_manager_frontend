@@ -279,12 +279,12 @@ function App() {
 
   const triggerSimulation = async (fileId) => {
     try {
-      await axios.post(`/api/v1/files/${fileId}/mark_uploaded`);
-      triggerToast('Simulation Activated', 'Background Lambda simulator successfully running.', 'info');
+      await axios.post(`/api/v1/files/${fileId}/reprocess`);
+      triggerToast('Reprocessing', 'Lambda invoked for file reprocessing.', 'info');
       fetchFiles(true);
     } catch (err) {
-      console.error("Simulation error:", err);
-      triggerToast('Simulation Error', `Failed to trigger: ${err.response?.data?.error || err.message}`, 'error');
+      console.error("Reprocess error:", err);
+      triggerToast('Reprocess Error', `Failed: ${err.response?.data?.error || err.message}`, 'error');
     }
   };
 
