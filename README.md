@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0A071B,50:1A1235,100:635BFF&height=200&section=header&text=CloudVault%20Frontend&fontSize=48&fontColor=ffffff&fontAlignY=38&desc=Sleek%20React%2019%20SPA%20%C2%B7%20Real-Time%20File%20AI&descSize=18&descAlignY=58&descColor=635BFF" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0A071B,50:1A1235,100:635BFF&height=200&section=header&text=CloudVault%20Frontend&fontSize=48&fontColor=ffffff&fontAlignY=38&desc=React%2019%20SPA%20%C2%B7%20S3%20Uploads%20%C2%B7%20Share%20Links&descSize=18&descAlignY=58&descColor=635BFF" width="100%" />
 
 <br/>
 
@@ -10,7 +10,7 @@
 
 <br/>
 
-> *An immersive, single-page dashboard application built with modern React 19 and Vite, facilitating fluid drag-and-drop file staging, continuous polling state syncs, and context-targeted RAG chat layers.*
+> *A single-page dashboard for file management with drag-and-drop uploads, real-time processing status, and secure share links.*
 
 </div>
 
@@ -22,100 +22,91 @@
 
 ---
 
-## 🛠️ Tech Stack & Dependencies
-
-The frontend environment is tailored using cutting-edge rendering abstractions and ultra-fast Rust-powered building/linting tooling for instantaneous startup.
+## 🛠️ Tech Stack
 
 | Layer | Technology | Role |
 | :--- | :--- | :--- |
-| **UI Library** | `React 19` *(SPA)* | Reactive single-page component layout management |
-| **Build Toolchain** | `Vite 8` | Hot Module Replacement (HMR) bundler |
-| **API Client Pipeline**| `Axios` | Configured async HTTP handshakes & auth injection |
-| **Design Assets** | `Lucide React` | High-fidelity, modular vector iconography |
-| **Quality Assurance** | `Oxlint` | Rust-backed static code analysis and linting |
+| **UI Library** | `React 19` *(SPA)* | Component-based UI |
+| **Build Toolchain** | `Vite 8` | Dev server & HMR bundler |
+| **HTTP Client** | `Axios` | API requests with JWT interceptor |
+| **Icons** | `Lucide React` | Vector icon library |
+| **Linter** | `Oxlint` | Rust-backed static analysis |
 
 ---
 
-## ✨ Application Features
+## ✨ Features
 
-### 📦 Seamless Ingestion UI
-* **Drag-and-Drop Staging:** High-performance viewport drop zones processing multi-file arrays.
-* **Granular Visual Feedback:** Interactive, real-time progress bars tracking direct cloud infrastructure uploads.
+### 📦 File Upload
+* **Drag-and-drop** or click-to-select interface for uploading multiple files.
+* **Progress bars** show real-time upload status for each file.
+* Files stream directly to S3 via presigned URLs — no server-side file buffering.
 
-### 🔍 Intuitive Resource Discovery
-* **Deep Index Querying:** Live dataset filtering across standard attributes (file names, media extensions) alongside deep metadata tags generated via AI (summaries, smart keywords).
-* **Autonomous Synchronization:** Non-blocking background worker mechanics running polling routines every 3 seconds to guarantee precise file processing status reflections.
+### 📋 File Dashboard
+* **Table view** with file name, size, status (`uploading`, `processing`, `processed`, `failed`), and processing summary.
+* **Search** filters by file name, type, and metadata tags/summary from Lambda processing results.
+* **Auto-polling** every 3 seconds syncs file status without manual refresh.
+* **File preview** — view images, PDFs, and text files in a detail drawer.
 
-### 💬 Inline AI RAG Agent
-* Interacts with user documents across both global context layers (entire cloud vault) or isolated sub-contexts (specific single-file targeting queries).
+### 🔄 Reprocess
+* One-click re-invoke of the Lambda processing pipeline for failed or stalled files.
 
-### 🔒 Cryptographic Share Customization
-* Orchestrates target link definitions to inject multi-layered parameters, including access passwords, absolute expiry timers, or automated self-destruct routines upon data delivery.
+### 🔗 Share Links
+* **Token-based sharing** — generate share links with optional passcode protection, expiry time, and download limits.
+* **Public access** — recipients can download files without logging in, subject to share constraints.
 
 ---
 
-## ⚙️ Structural Architecture
-
+## ⚙️ Project Structure
 
 ```
-
 src/
-├── App.jsx       — Orchestrates authentication states, view changes, chat, and workspaces
-├── App.css       — Functional component layout abstractions
-├── main.jsx      — Document Object Model mounting lifecycle root
-└── index.css     — Core design tokens and system variables
-
+├── App.jsx     — Auth, upload, file list, preview, share views
+├── App.css     — Component styles
+├── main.jsx    — DOM mounting entry
+└── index.css   — Design tokens and CSS variables
 ```
 
 ---
 
-## 🛰️ Environment & Network Handshakes
+## 🌐 Environment
 
-The application is architected to route outbound communications dynamically via uniform interceptor pipelines:
+The API base URL defaults to the same origin (empty string) for production behind nginx. For local development, set `VITE_API_URL` in `.env`:
 
-* **Inbound Targeting:** The baseline server gateway points natively to `http://localhost:3000` (definable in `src/App.jsx:30`).
-* **Stateless Security Pass:** An automated Axios Request Interceptor actively intercepts systemic operations to attach user bearer signatures into standard authorization headers.
+```
+VITE_API_URL=http://localhost:3000
+```
+
+An Axios interceptor automatically attaches `Bearer <token>` from `localStorage` to every request.
 
 ---
 
 ## 🚀 Getting Started
 
-### Local Workspace Bootstrapping
 ```bash
-# Pull production node packages and module trees
 npm install
-
-# Initialize high-speed localized Vite development listener
 npm run dev
-
 ```
 
-*The interactive environment resolves automatically to `http://localhost:5173`. Ensure your local CloudVault companion backend is up and running concurrently on port `3000`.*
+Runs at `http://localhost:5173`. Make sure the backend is running on port `3000`.
 
-### Automation Scripts Matrix
+### Scripts
 
-| Command | Runtime Context Side Effects |
+| Command | Description |
 | --- | --- |
-| `npm run dev` | Spins up the internal Vite micro-server engine. |
-| `npm run build` | Compiles optimized structural minified bundles into the `/dist` pipeline. |
-| `npm run preview` | Spins up a localized static proxy layer to evaluate the production build. |
-| `npm run lint` | Triggers immediate structural code reviews via Oxlint. |
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Build for production into `/dist` |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run Oxlint |
 
 ---
 
-## 📦 Production Delivery & Asset Hosting
-
-To build a compressed compilation suitable for high-performance edge deployment, compile your codebase statically:
+## 📦 Production Build
 
 ```bash
 npm run build
-
 ```
 
-### Static Serving Deploy Options
-
-1. **Reverse Proxying:** Mount the compiled `/dist` directory files cleanly into a customized server directory block governed by an edge reverse proxy platform like **Nginx**.
-2. **Monolithic Rails Assembly:** Move the generated target bundle assets directly into your Ruby on Rails companion folder space (`public/`) to deliver the complete ecosystem through unified application containers.
+Deploy the `/dist` folder behind nginx (as done in the CloudFormation template) or copy into the Rails `public/` directory.
 
 ---
 
